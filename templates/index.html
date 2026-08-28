@@ -1,0 +1,1161 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Control Financiero - Cuentas y Pagos</title>
+    <style>
+        :root {
+            --primario: #2c3e50;
+            --exito: #27ae60;
+            --alerta: #e74c3c;
+            --pendiente: #e67e22;
+            --fondo: #f4f6f9;
+            --blanco: #ffffff;
+        }
+
+        * { box-sizing: border-box; }
+
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background-color: var(--fondo); margin: 0; padding: 15px; color: #333; }
+
+        .container { max-width: 1250px; margin: 0 auto; }
+        h1 { color: var(--primario); text-align: center; font-size: 1.5rem; }
+
+        .grid-layout { display: grid; grid-template-columns: 1fr; gap: 20px; }
+        @media (min-width: 900px) { .grid-layout { grid-template-columns: 380px 1fr; } }
+
+        .card { background: var(--blanco); padding: 20px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); margin-bottom: 20px; }
+        .card h3 { margin-top: 0; color: var(--primario); font-size: 1.1rem; border-bottom: 2px solid #f0f0f0; padding-bottom: 10px; }
+        
+        .resumen-dia { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 10px; margin-bottom: 15px; }
+        .tarjeta-cifra { padding: 12px; border-radius: 8px; text-align: center; border: 1px solid transparent; cursor: pointer; transition: transform 0.2s ease, box-shadow 0.2s ease; }
+        .tarjeta-cifra:hover { transform: translateY(-3px); box-shadow: 0 6px 12px rgba(0,0,0,0.1); }
+        
+        .bg-azul { background-color: #ebf5fb; border-color: #aed6f1; }
+        .bg-verde { background-color: #e8f8f5; border-color: #a3e4d7; }
+        .bg-rojo { background-color: #fdedec; border-color: #f5b7b1; }
+        .bg-gris { background-color: #f4f6f7; border-color: #d5dbdb; }
+        .bg-naranja { background-color: #fdf2e9; border-color: #f5cba7; }
+        
+        .tarjeta-cifra span { display: block; font-size: 0.75rem; color: #555; font-weight: bold;}
+        .tarjeta-cifra strong { display: block; font-size: 1.2rem; margin-top: 5px;}
+
+        .text-verde { color: var(--exito) !important; font-weight: bold; }
+        .text-rojo { color: var(--alerta) !important; font-weight: bold; }
+
+        form label { display: block; margin-top: 10px; font-weight: 600; font-size: 0.85rem; color: #555;}
+        form input, form select { width: 100%; padding: 10px; margin-top: 4px; border: 1.5px solid #e0e0e0; border-radius: 8px; font-size: 0.95rem; background-color: #fafafa; }
+        form input:focus, form select:focus { border-color: var(--primario); outline: none;}
+        form input[readonly] { background-color: #eef2f7; border-color: #d5dbdb; cursor: not-allowed; font-weight: bold;}
+
+        .btn-guardar { background: var(--primario); color: white; border: none; padding: 14px; margin-top: 20px; width: 100%; border-radius: 8px; font-size: 1rem; cursor: pointer; font-weight: bold; }
+
+        .barra-herramientas { display: flex; gap: 10px; margin-bottom: 15px; flex-wrap: wrap; align-items: center;}
+        #buscador { flex-grow: 1; padding: 12px 15px; border: 2px solid #3498db; border-radius: 8px; font-size: 1rem; background-color: #fff; min-width: 200px;}
+
+        .btn-descargar { background-color: var(--primario); color: white; padding: 12px 20px; border-radius: 8px; text-decoration: none; font-weight: bold; text-align: center; font-size: 1rem; border: none; transition: background 0.3s; cursor: pointer;}
+        .btn-descargar:hover { background-color: #1a252f; }
+        
+        .table-wrapper { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; min-width: 800px; }
+        th, td { padding: 10px; text-align: left; border-bottom: 1px solid #eee; font-size: 0.85rem; vertical-align: middle; }
+        th { background-color: #f8f9fa; color: var(--primario); font-weight: bold;}
+        
+        .badge { padding: 4px 8px; border-radius: 20px; font-size: 0.7rem; font-weight: bold; display: inline-block; text-align: center; }
+        .badge-pagado { background: #e8f8f5; color: var(--exito); }
+        .badge-abono { background: #ebf5fb; color: #2980b9; }
+        .badge-pendiente { background: #fdf2e9; color: var(--pendiente); }
+        .badge-origen { background: #f0f3f4; color: #34495e; border: 1px solid #d5dbdb; }
+
+        .fecha-chica { font-size: 0.7rem; color: #888; display: block; }
+        .monto-bs { font-size: 0.75rem; font-weight: bold; display: block; margin-top: 2px;}
+        
+        .btn-eliminar, .btn-editar { background: transparent; border: 1px solid #dcdde1; font-size: 0.75rem; padding: 5px 10px; border-radius: 4px; cursor: pointer; font-weight: 600; margin-right: 4px; }
+        .btn-eliminar { color: #e74c3c; border-color: #f5b7b1; }
+        .btn-eliminar:hover { background: #fdedec; }
+        .btn-editar { color: #2980b9; border-color: #aed6f1; }
+        .btn-editar:hover { background: #ebf5fb; }
+        
+        .btn-borrar-todo { background-color: transparent; color: #c0392b; padding: 10px 24px; border: 1.5px solid #c0392b; border-radius: 30px; cursor: pointer; font-weight: 600; font-size: 0.9rem; }
+        .btn-borrar-todo:hover { background-color: #c0392b; color: white; }
+
+        .status-scraper { font-size: 0.7rem; color: #27ae60; text-align: right; margin-top: 2px; display: block; font-weight: normal; }
+
+        .modal { display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.6); backdrop-filter: blur(3px); overflow-y: auto; padding: 20px 0; }
+        .modal-content { background-color: #fff; margin: auto; padding: 25px; border-radius: 12px; width: 90%; max-width: 450px; box-shadow: 0 10px 25px rgba(0,0,0,0.2); max-height: 85vh; overflow-y: auto; }
+        .close { float: right; font-size: 28px; font-weight: bold; cursor: pointer; color: #aaa; }
+        .close:hover { color: #333; }
+
+        /* --- VENTANA DE CHAT IA --- */
+        /* 1. VENTANA DEL CHAT (Arregla que se esconda detrás de la barra) */
+        .chat-ia-ventana {
+            display: none;
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 92%; 
+            max-width: 450px; 
+            height: 80vh; 
+            max-height: 600px;
+            background-color: var(--blanco);
+            border-radius: 12px;
+            box-shadow: 0 15px 35px rgba(0,0,0,0.25);
+            z-index: 9998;
+            flex-direction: column;
+            overflow: hidden;
+            border: 1px solid #e0e0e0;
+        }
+
+.chat-ia-ventana {
+    display: none;
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 92%; 
+    max-width: 450px; 
+    height: 80vh; 
+    max-height: 600px;
+    background-color: var(--blanco);
+    border-radius: 12px;
+    box-shadow: 0 15px 35px rgba(0,0,0,0.25);
+    z-index: 9998;
+    flex-direction: column;
+    overflow: hidden;
+    border: 1px solid #e0e0e0;
+    font-size: 16px; /* Letra un poco más grande */
+}
+
+/* 1. Teléfono: Vuelve a estar exactamente al 100% como me pediste */
+.chat-ia-ventana.maximizada {
+    top: 0 !important;
+    left: 0 !important;
+    transform: none !important;
+    width: 100% !important;
+    height: 100% !important; 
+    max-width: 100% !important;
+    max-height: 100% !important;
+    border-radius: 0 !important;
+    border: none !important;
+    margin: 0 !important;
+    resize: none;
+    box-sizing: border-box !important;
+}
+
+/* 2. Computadora: SOLO si la pantalla es grande, aplica el 90% para evadir la barra de Windows */
+@media (min-width: 768px) {
+    .chat-ia-ventana.maximizada {
+        height: 90vh !important; 
+        max-height: 90vh !important;
+    }
+}
+
+        .chat-ia-header {
+            background: linear-gradient(135deg, #2c3e50, #34495e);
+            color: white;
+            padding: 15px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-weight: 600;
+            font-size: 1.05rem;
+            cursor: move;
+        }
+        .chat-ia-header .header-titulo {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .chat-ia-header .controles-chat {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .btn-control-chat {
+            background: rgba(255, 255, 255, 0.15);
+            border: none;
+            color: white;
+            width: 32px;
+            height: 32px;
+            border-radius: 6px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: background 0.2s, transform 0.1s;
+        }
+        .btn-control-chat:hover {
+            background: rgba(255, 255, 255, 0.3);
+        }
+        .btn-control-chat:active {
+            transform: scale(0.95);
+        }
+
+        .chat-ia-body {
+            flex-grow: 1;
+            padding: 15px;
+            overflow-y: auto;
+            background-color: #f9f9f9;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .chat-msg {
+            max-width: 88%;
+            padding: 12px 16px;
+            border-radius: 14px;
+            font-size: 1rem;
+            line-height: 1.5;
+            white-space: pre-wrap;
+            word-break: break-word;
+        }
+        .msg-ia {
+            background-color: #eef2f7;
+            align-self: flex-start;
+            border-bottom-left-radius: 3px;
+            color: #2c3e50;
+            border: 1px solid #dce4ec;
+        }
+        .msg-user {
+            background-color: #d5f5e3;
+            align-self: flex-end;
+            border-bottom-right-radius: 3px;
+            color: #1a5230;
+            border: 1px solid #c3e8d1;
+        }
+
+        .chat-ia-input {
+            display: flex;
+            align-items: center;
+            padding: 12px;
+            background: white;
+            border-top: 1px solid #eee;
+            gap: 8px;
+            width: 100%;
+            box-sizing: border-box;
+        }
+        .chat-ia-input input[type="text"] {
+            flex: 1;
+            min-width: 0; 
+            padding: 12px 15px;
+            border: 1px solid #ddd;
+            border-radius: 20px;
+            outline: none;
+            font-size: 1rem;
+            transition: border-color 0.2s;
+        }
+        .chat-ia-input input[type="text"]:focus {
+            border-color: #3498db;
+        }
+        .chat-ia-input button, .chat-ia-input label {
+            flex-shrink: 0; 
+            background-color: #2980b9;
+            color: white;
+            border: none;
+            border-radius: 50%;
+            width: 44px;
+            height: 44px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 16px;
+            transition: background-color 0.2s;
+        }
+        .chat-ia-input button:hover, .chat-ia-input label:hover {
+            background-color: #1f6391;
+        }
+        .chat-ia-input button svg, .chat-ia-input label svg { pointer-events: none; }
+    </style>
+</head>
+<body>
+    <div id="datos-config" 
+         data-bcv="{{ tasas.BCV }}" 
+         data-euro="{{ tasas.Euro }}" 
+         data-usdt="{{ tasas.USDT }}"
+         data-totales='{{ totales | tojson | safe }}'>
+    </div>
+
+    <div class="container">
+        <h1>📊 Sistema de Control - Dyvenplast 2025</h1>
+
+        <div class="grid-layout">
+            <div>
+                <div class="card">
+                    <h3>➕ Registrar Movimiento</h3>
+                    <form action="/agregar" method="POST">
+                        
+                        <label>Tipo de Movimiento:</label>
+                        <select id="tipoMovimiento" onchange="cambiarTipoMovimiento()">
+                            <option value="gasto">Gasto</option>
+                            <option value="ingreso">Ingresos por ventas</option>
+                        </select>
+
+                        <label>Monto ($):</label>
+                        <input type="text" name="monto" id="inputMonto" placeholder="Ej: 1.712,15 o 1712,15" required oninput="calcularBs()">
+
+                        <label>Tasa de Cambio Oficial:</label>
+                        <select name="tipo_tasa" id="selectTasa" onchange="cambiarTasa()">
+                            <option value="BCV">BCV (Oficial)</option>
+                            <option value="Euro">Euro</option>
+                            <option value="USDT">USDT (Binance)</option>
+                            <option value="Personalizada">Personalizada</option>
+                        </select>
+
+                        <label>
+                            Valor de la Tasa (Bs por $):
+                            <span class="status-scraper">🟢 Conectado al Servidor (Automático)</span>
+                        </label>
+                        <input type="text" name="tasa_valor" id="inputTasaValor" required oninput="calcularBs()">
+
+                        <div style="background: #eef2f7; padding: 10px; border-radius: 6px; margin-top: 10px; font-size: 0.9rem;">
+                            🧮 Total a registrar: <strong id="previewBs" style="font-size: 1.1rem; color: #34495e;">0,00 Bs</strong>
+                        </div>
+
+                        <label>Empresa / Entidad:</label>
+                        <input type="text" name="empresa" placeholder="Ej: Dyvenplast" required>
+
+                        <label>Concepto / Detalle:</label>
+                        <input type="text" name="concepto" placeholder="Ej: Pago de factura" required>
+
+                        <label id="labelOrigen">Origen del dinero:</label>
+                        <select name="origen" id="selectOrigen" onchange="verificarOtroOrigen()" required>
+                            <option value="Cuenta Ingeniero">Cuenta Ing. Dimas</option>
+                            <option value="Cuenta Mayra">Cuenta Mayra</option>
+                            <option value="Cuenta Binance">Cuenta Binance</option>
+                            <option value="Cuenta Yorgelis">Cuenta Yorgelis</option>
+                            <option value="Otra">➕ Otra (Añadir nueva...)</option>
+                        </select>
+                        <input type="text" name="origen_otro" id="inputOtroOrigen" placeholder="Escribe el nombre de la cuenta" style="display: none;">
+
+                        <label>Categoría:</label>
+                        <input type="text" id="busquedaCategoria" placeholder="🔍 Buscar categoría..." onkeyup="filtrarCategorias()" style="margin-bottom: 4px; padding: 8px;">
+                        
+                        <select name="categoria" id="listaCategorias" size="5" style="height: 120px;" required>
+                            <option value="Adicionales nómina">Adicionales Nomina</option>
+                            <option value="Alcaldía">Alcaldia</option>
+                            <option value="Alquiler de Galpón">Alquiler de Galpon</option>
+                            <option value="Binance">Binance</option>
+                            <option value="Bono de alimentación (Cestaticket)">Bono De Alimentación (Cestaticket)</option>
+                            <option value="Comisiones">Comisiones</option>
+                            <option value="Compra Aditivos">Compra Aditivos</option>
+                            <option value="Compra de maquinaria y equipo">Compra De Maquinaria y Equipo</option>
+                            <option value="Compra Materia Prima">Compra Materia Prima</option>
+                            <option value="Corpoelec">Corpoelec</option>
+                            <option value="Deberes Formales">Deberes Formales</option>
+                            <option value="Donaciones">Donaciones</option>
+                            <option value="Dotación uniforme">Dotación Uniforme</option>
+                            <option value="Fletes">Fletes</option>
+                            <option value="Gastos accionista">Gastos Accionista</option>
+                            <option value="Gasto de representación">Gastos De Representación</option>
+                            <option value="Gastos de Mantenimiento">Gastos De Mantenimiento</option>
+                            <option value="Gastos de Oficina">Gastos De Oficina</option>
+                            <option value="Gastos médicos">Gastos Médicos</option>
+                            <option value="Ingresos por Ventas">Ingresos Por Ventas</option>
+                            <option value="Internet Wi-Fi">Internet Wi-Fi</option>
+                            <option value="Liquidación de prestaciones sociales">Liquidación De Prestaciones Sociales</option>
+                            <option value="Mantenimiento Planta Eléctrica">Mantenimiento Planta Eléctrica</option>
+                            <option value="Mantenimiento Vehículo">Mantenimiento Vehículos</option>
+                            <option value="Nómina">Nomina</option>
+                            <option value="Pago guía Desoca">Pago Guía Desoca</option>
+                            <option value="Prepago Materia Prima">Prepago Materia Prima</option>
+                            <option value="Préstamos Empleados">Préstamos Empleados</option>
+                            <option value="Préstamos Terceros">Préstamos Terceros</option>
+                        </select>
+
+                        <div style="display: flex; gap: 6px; margin-top: 6px;">
+                            <input type="text" id="nuevaCategoriaInput" placeholder="Añadir nueva..." style="margin-top: 0; flex: 1; padding: 8px; font-size: 0.9rem;">
+                            <button type="button" onclick="agregarNuevaCategoria()" style="background: var(--primario); color: white; border: none; padding: 8px 12px; border-radius: 8px; cursor: pointer; font-weight: bold; font-size: 0.85rem;">➕ Añadir</button>
+                            <button type="button" onclick="eliminarCategoria()" style="background: var(--alerta); color: white; border: none; padding: 8px 12px; border-radius: 8px; cursor: pointer; font-weight: bold; font-size: 0.85rem;">🗑️ Borrar</button>
+                        </div>
+
+                        <label>Estatus:</label>
+                        <select name="estatus" required>
+                            <option value="Pagado">✅ Pagado</option>
+                            <option value="Abono">⚡ Abono</option>
+                            <option value="Pendiente por cobrar">⏳ Pendiente Por Cobrar</option>
+                        </select>
+
+                        <button type="submit" class="btn-guardar">💾 Guardar Registro</button>
+                    </form>
+                </div>
+            </div>
+
+            <div>
+                <div class="card">
+                    <h3>📅 Resumen De Hoy</h3>
+                    <div class="resumen-dia">
+                        <div class="tarjeta-cifra bg-azul" onclick="filtrarTabla('todo')" title="Ver todos">
+                            <span>Movimientos</span>
+                            <strong>{{ resumen_hoy.movimientos_hechos }}</strong>
+                        </div>
+                        <div class="tarjeta-cifra bg-verde" onclick="filtrarTabla('ingresos')" title="Ver solo Ingresos">
+                            <span>Ingresos (Total)</span>
+                            <strong class="text-verde">${{ "{:,.2f}".format(resumen_hoy.ingresos).replace(',', 'X').replace('.', ',').replace('X', '.') }}</strong>
+                        </div>
+                        <div class="tarjeta-cifra bg-rojo" onclick="filtrarTabla('egresos')" title="Ver solo Gastos">
+                            <span>Egresos (Total)</span>
+                            <strong class="text-rojo">${{ "{:,.2f}".format(resumen_hoy.egresos).replace(',', 'X').replace('.', ',').replace('X', '.') }}</strong>
+                        </div>
+                        <div class="tarjeta-cifra bg-gris" onclick="filtrarTabla('todo')" title="Ver Balance">
+                            <span>Saldo Restante</span>
+                            <strong class="{% if resumen_hoy.saldo >= 0 %}text-verde{% else %}text-rojo{% endif %}">
+                                ${{ "{:,.2f}".format(resumen_hoy.saldo).replace(',', 'X').replace('.', ',').replace('X', '.') }}
+                            </strong>
+                        </div>
+                        <div class="tarjeta-cifra bg-naranja" onclick="filtrarTabla('pendiente')" title="Ver Pendientes por Cobrar">
+                            <span>Por Cobrar</span>
+                            <strong style="color: var(--pendiente);">${{ "{:,.2f}".format(resumen_hoy.por_cobrar).replace(',', 'X').replace('.', ',').replace('X', '.') }}</strong>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="barra-herramientas">
+                    <input type="text" id="buscador" placeholder="🔍 Buscar movimiento por empresa, monto o concepto...">
+                    <a href="/exportar" class="btn-descargar">📥 Descargar Reporte Excel</a>
+                    <button type="button" class="btn-descargar" style="background-color: #2980b9;" onclick="toggleChatIA()">🤖 Abrir Asistente IA</button>
+                </div>
+
+                <div class="table-wrapper">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Fecha</th>
+                                <th>Empresa</th>
+                                <th>Concepto/Categoría</th>
+                                <th>Monto ($ / Bs)</th>
+                                <th>Cuenta (Origen)</th>
+                                <th>Estatus</th>
+                                <th style="min-width: 130px;">Acciones</th> 
+                            </tr>
+                        </thead>
+                        <tbody id="tabla-pagos">
+                            {% for p in pagos %}
+                            <tr data-tipo="{% if p.es_ingreso %}ingreso{% else %}gasto{% endif %}" data-estatus="{{ p.estatus | lower }}">
+                                <td><span class="fecha-chica">{{ p.fecha[:10] }}</span></td>
+                                <td><strong>{{ p.empresa }}</strong></td>
+                                <td>
+                                    {{ p.concepto }}<br>
+                                    <small style="color: #666;">{{ p.categoria }}</small>
+                                </td>
+                                <td>
+                                    <strong class="{% if p.es_ingreso %}text-verde{% else %}text-rojo{% endif %}">
+                                        $ {{ "{:,.2f}".format(p.monto).replace(',', 'X').replace('.', ',').replace('X', '.') }}
+                                    </strong>
+                                    <span class="monto-bs {% if p.es_ingreso %}text-verde{% else %}text-rojo{% endif %}">
+                                        Bs. {{ "{:,.2f}".format(p.monto_bs).replace(',', 'X').replace('.', ',').replace('X', '.') }}
+                                    </span>
+                                    <small style="color:#7f8c8d;">({{ p.tasa_usada }})</small>
+                                </td>
+                                <td><span class="badge badge-origen">{{ p.origen }}</span></td>
+                                <td>
+                                    <span class="badge {% if p.estatus == 'Pagado' %}badge-pagado{% elif p.estatus == 'Abono' %}badge-abono{% else %}badge-pendiente{% endif %}">
+                                        {{ p.estatus }}
+                                    </span>
+                                </td>
+                                <td>
+                                    <button type="button" class="btn-editar" 
+                                        data-id="{{ p.id }}" 
+                                        data-fecha="{{ p.fecha[:10] }}"
+                                        data-empresa="{{ p.empresa }}"
+                                        data-concepto="{{ p.concepto }}"
+                                        data-monto="{{ p.monto }}"
+                                        data-origen="{{ p.origen }}"
+                                        data-categoria="{{ p.categoria }}"
+                                        data-estatus="{{ p.estatus }}"
+                                        onclick="abrirModalEditar(this)">Editar</button>
+
+                                    <form action="/eliminar/{{ p.id }}" method="POST" onsubmit="return confirm('¿Desea eliminar este registro permanentemente?');" style="display:inline;">
+                                        <button type="submit" class="btn-eliminar">Borrar</button>
+                                    </form>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+
+                <div style="margin-top: 40px; text-align: center; border-top: 1px solid #eee; padding-top: 30px;">
+                    <form action="/vaciar_historial" method="POST" onsubmit="return confirm('ATENCIÓN: ¿Está seguro de que desea borrar todo el historial? Se recomienda descargar un reporte Excel antes de continuar.');">
+                        <button type="submit" class="btn-borrar-todo">Borrar todo el historial</button>
+                    </form>
+                </div>
+
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL DE EDICIÓN FLOTANTE -->
+    <div id="modalEditar" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="document.getElementById('modalEditar').style.display='none'">&times;</span>
+            <h3 style="margin-top:0; color:var(--primario); border-bottom: 1px solid #eee; padding-bottom:10px;">✏️ Editar Movimiento</h3>
+            
+            <form id="formEditar" method="POST">
+                <label>Fecha del Registro:</label>
+                <input type="date" name="fecha" id="editFecha" required>
+
+                <label>Empresa / Entidad:</label>
+                <input type="text" name="empresa" id="editEmpresa" required>
+
+                <label>Concepto:</label>
+                <input type="text" name="concepto" id="editConcepto" required>
+
+                <label>Cuenta (Origen):</label>
+                <input type="text" name="origen" id="editOrigen" required>
+
+                <label>Categoría (Escríbela igual a la lista):</label>
+                <input type="text" name="categoria" id="editCategoria" required>
+
+                <label>Estatus Actualizado:</label>
+                <select name="estatus" id="editEstatus" required onchange="manejarAccionesEstatus()">
+                    <option value="Pagado">✅ Pagado</option>
+                    <option value="Abono">⚡ Abono</option>
+                    <option value="Pendiente por cobrar">⏳ Pendiente por cobrar</option>
+                </select>
+
+                <div id="cajaAbono" style="display:none; background: #ebf5fb; padding: 12px; border-radius: 8px; margin-top: 12px; border: 1px solid #aed6f1;">
+                    <label style="color: #2980b9; margin-top:0;">⚡ Monto a Restar (Abono $):</label>
+                    <input type="text" id="inputAbono" placeholder="Ej: 50,00" oninput="recalcularMontoEditado()">
+                </div>
+                <div id="cajaPrestar" style="display:none; background: #fdf2e9; padding: 12px; border-radius: 8px; margin-top: 12px; border: 1px solid #f5cba7;">
+                    <label style="color: #e67e22; margin-top:0;">⏳ Se volvió a prestar (Sumar $):</label>
+                    <input type="text" id="inputPrestar" placeholder="Ej: 20,00" oninput="recalcularMontoEditado()">
+                </div>
+
+                <div style="background: #f8f9fa; padding: 12px; border-radius: 8px; margin-top: 12px; border: 1.5px solid #dcdde1;">
+                    <label style="margin-top:0; color: #2c3e50;">🧮 Monto Final que quedará ($):</label>
+                    <input type="text" name="monto" id="editMonto" required readonly style="font-weight: bold; background: #eef2f7; font-size: 1.1rem; color: #2c3e50;">
+                </div>
+
+                <button type="submit" class="btn-guardar" style="margin-top:15px; background-color: #2980b9;">💾 Guardar Cambios</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- --- VENTANA DE CHAT IA --- -->
+<div class="chat-ia-ventana" id="chatIA">
+        <div class="chat-ia-header" id="chatIAHeader">
+            <div class="header-titulo">
+                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .963 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.581a.5.5 0 0 1 0 .964L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.963 0z"></path>
+                </svg>
+                Asistente Inteligente
+            </div>
+            <div class="controles-chat">
+                <button type="button" class="btn-control-chat" onclick="maximizarChatIA()" title="Pantalla completa">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 3 21 3 21 9"></polyline><polyline points="9 21 3 21 3 15"></polyline><line x1="21" y1="3" x2="14" y2="10"></line><line x1="3" y1="21" x2="10" y2="14"></line></svg>
+                </button>
+                <button type="button" class="btn-control-chat" onclick="toggleChatIA()" title="Cerrar">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                </button>
+            </div>
+        </div>
+
+        <div style="display: flex; gap: 10px; padding: 10px; background: #f9f9f9; border-bottom: 1px solid #e0e0e0;">
+            <input type="text" id="buscadorChatIA" placeholder="Buscar mensaje..." onkeyup="buscarMensajeIA()" style="flex: 1; padding: 8px 15px; border: 1px solid #ddd; border-radius: 20px; font-size: 14px; outline: none;">
+            <button type="button" onclick="limpiarChatIA()" title="Borrar historial del chat" style="background: none; border: none; cursor: pointer; color: #e74c3c; padding: 0 5px;">
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+            </button>
+        </div>
+
+        <div class="chat-ia-body" id="cuerpoChatIA">
+            <div class="chat-msg msg-ia">¡Hola! Soy tu asistente. Puedo responder tus dudas, hacer cálculos matemáticos o registrar movimientos directamente en el sistema. ✨</div>
+        </div>
+        
+        <div class="chat-ia-input">
+            <label for="inputImagenIA" id="labelImagenIA" title="Adjuntar imagen">
+                <svg style="pointer-events: none;" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"></path>
+                </svg>
+            </label>
+            <input type="file" id="inputImagenIA" accept="image/*" multiple style="display: none;" onchange="fotoSeleccionada()">
+
+            <button type="button" id="btnMicrofonoIA" onclick="alternarGrabacion()" title="Grabar nota de voz">
+                <svg style="pointer-events: none;" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z"></path>
+                    <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
+                    <line x1="12" y1="19" x2="12" y2="23"></line>
+                    <line x1="8" y1="23" x2="16" y2="23"></line>
+                </svg>
+            </button>
+
+            <input type="text" id="inputMensajeIA" placeholder="Escribe tu mensaje aquí...">
+            
+            <button type="button" onclick="enviarMensajeIA()" title="Enviar mensaje">
+                <svg style="pointer-events: none;" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <line x1="22" y1="2" x2="11" y2="13"></line>
+                    <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+                </svg>
+            </button>
+        </div>
+    </div>
+
+    <script>
+        const configData = document.getElementById('datos-config');
+        const tasasVivas = {
+            "BCV": parseFloat(configData.dataset.bcv) || 0,
+            "Euro": parseFloat(configData.dataset.euro) || 0,
+            "USDT": parseFloat(configData.dataset.usdt) || 0
+        };
+
+        function filtrarTabla(filtro) {
+            let filas = document.querySelectorAll("#tabla-pagos tr");
+            filas.forEach(fila => {
+                let tipo = fila.getAttribute("data-tipo");
+                let estatus = fila.getAttribute("data-estatus");
+
+                if (filtro === 'todo') {
+                    fila.style.display = "";
+                } else if (filtro === 'ingresos') {
+                    fila.style.display = (tipo === 'ingreso') ? "" : "none";
+                } else if (filtro === 'egresos') {
+                    fila.style.display = (tipo === 'gasto') ? "" : "none";
+                } else if (filtro === 'pendiente') {
+                    fila.style.display = (estatus === 'pendiente por cobrar' || estatus === 'abono') ? "" : "none";
+                }
+            });
+        }
+
+        function agregarNuevaCategoria() {
+            let input = document.getElementById('nuevaCategoriaInput');
+            let nombreNueva = input.value.trim();
+            if(!nombreNueva) {
+                alert("Por favor escribe el nombre de la nueva categoría.");
+                return;
+            }
+            let select = document.getElementById('listaCategorias');
+            
+            let existe = false;
+            for(let opt of select.options) {
+                if(opt.value.toLowerCase() === nombreNueva.toLowerCase()) {
+                    existe = true;
+                    opt.selected = true;
+                    break;
+                }
+            }
+            
+            if(!existe) {
+                let nuevaOpt = document.createElement('option');
+                nuevaOpt.value = nombreNueva;
+                nuevaOpt.textContent = nombreNueva;
+                nuevaOpt.selected = true;
+                select.appendChild(nuevaOpt);
+            }
+            
+            input.value = '';
+            filtrarCategorias();
+        }
+
+        function eliminarCategoria() {
+            let select = document.getElementById('listaCategorias');
+            
+            if (select.selectedIndex === -1) {
+                alert("Primero haz clic en la categoría que quieres borrar de la lista.");
+                return;
+            }
+            
+            let opcionSeleccionada = select.options[select.selectedIndex].text;
+            let confirmar = confirm("¿Seguro que quieres borrar la categoría: '" + opcionSeleccionada + "'?");
+            
+            if (confirmar) {
+                select.remove(select.selectedIndex);
+                document.getElementById('busquedaCategoria').value = ''; 
+                filtrarCategorias(); 
+            }
+        }
+
+        let montoOriginalEdicion = 0;
+
+        function abrirModalEditar(btn) {
+            let id = btn.getAttribute('data-id');
+            document.getElementById('formEditar').action = '/editar/' + id;
+            
+            document.getElementById('editFecha').value = btn.getAttribute('data-fecha');
+            document.getElementById('editEmpresa').value = btn.getAttribute('data-empresa');
+            document.getElementById('editConcepto').value = btn.getAttribute('data-concepto');
+            
+            let montoStr = btn.getAttribute('data-monto');
+            montoOriginalEdicion = parseFloat(montoStr);
+            document.getElementById('editMonto').value = montoStr.replace('.', ',');
+            
+            document.getElementById('editOrigen').value = btn.getAttribute('data-origen');
+            document.getElementById('editCategoria').value = btn.getAttribute('data-categoria');
+            
+            let estatusActual = btn.getAttribute('data-estatus');
+            let selectEstatus = document.getElementById('editEstatus');
+            for(let i=0; i<selectEstatus.options.length; i++) {
+                if(selectEstatus.options[i].value.toLowerCase() === estatusActual.toLowerCase()) {
+                    selectEstatus.selectedIndex = i;
+                    break;
+                }
+            }
+            
+            document.getElementById('inputAbono').value = '';
+            document.getElementById('inputPrestar').value = '';
+            
+            manejarAccionesEstatus();
+            document.getElementById('modalEditar').style.display = 'block';
+        }
+
+        function manejarAccionesEstatus() {
+            let estatus = document.getElementById('editEstatus').value;
+            let cajaAbono = document.getElementById('cajaAbono');
+            let cajaPrestar = document.getElementById('cajaPrestar');
+            
+            if(estatus === 'Abono') {
+                cajaAbono.style.display = 'block';
+                cajaPrestar.style.display = 'none';
+                document.getElementById('inputPrestar').value = '';
+            } else if(estatus === 'Pendiente por cobrar') {
+                cajaAbono.style.display = 'none';
+                cajaPrestar.style.display = 'block';
+                document.getElementById('inputAbono').value = '';
+            } else { 
+                cajaAbono.style.display = 'none';
+                cajaPrestar.style.display = 'none';
+                document.getElementById('inputAbono').value = '';
+                document.getElementById('inputPrestar').value = '';
+            }
+            recalcularMontoEditado();
+        }
+
+        function recalcularMontoEditado() {
+            let estatus = document.getElementById('editEstatus').value;
+            let final = montoOriginalEdicion;
+            
+            if(estatus === 'Abono') {
+                let restar = convertirNumero(document.getElementById('inputAbono').value);
+                final -= restar;
+            } else if(estatus === 'Pendiente por cobrar') {
+                let sumar = convertirNumero(document.getElementById('inputPrestar').value);
+                final += sumar;
+            }
+            
+            if(final < 0) final = 0;
+            document.getElementById('editMonto').value = final.toFixed(2).replace('.', ',');
+        }
+
+        function cambiarTipoMovimiento() {
+            let tipo = document.getElementById("tipoMovimiento").value;
+            let labelOrigen = document.getElementById("labelOrigen");
+            let selectOrigen = document.getElementById("selectOrigen");
+            let selectCategoria = document.getElementById("listaCategorias");
+            let opcionesCategoria = selectCategoria.getElementsByTagName("option");
+
+          if (tipo === "ingreso") {
+                labelOrigen.innerHTML = "Añadir cuenta <em>(Quién te pagó)</em>:";
+                selectOrigen.value = "Otra";
+                verificarOtroOrigen(); 
+                
+                for(let opt of opcionesCategoria) {
+                    if(opt.value === "Ingresos por Ventas") {
+                        opt.style.display = "";
+                        opt.selected = true;
+                    } else {
+                        opt.style.display = "none";
+                    }
+                }
+            } else {
+                labelOrigen.innerText = "Origen del dinero:";
+                selectOrigen.value = "Cuenta Ingeniero";
+                verificarOtroOrigen(); 
+                
+                let primerGasto = null;
+                for(let opt of opcionesCategoria) {
+                    if(opt.value === "Ingresos por Ventas") {
+                        opt.style.display = "none";
+                    } else {
+                        opt.style.display = "";
+                        if(!primerGasto) primerGasto = opt;
+                    }
+                }
+                if(primerGasto) primerGasto.selected = true;
+            }
+        }
+
+        function verificarOtroOrigen() {
+            let select = document.getElementById("selectOrigen");
+            let input = document.getElementById("inputOtroOrigen");
+            let tipo = document.getElementById("tipoMovimiento").value;
+            
+            if (select.value === "Otra") {
+                input.style.display = "block";
+                input.required = true;
+                if (tipo === "ingreso") {
+                    input.placeholder = "Ej: Mamá, Cliente...";
+                } else {
+                    input.placeholder = "Escribe el nombre de la cuenta (Ej: Diego)";
+                }
+                input.focus();
+            } else {
+                input.style.display = "none";
+                input.required = false;
+            }
+        }
+
+        document.getElementById("buscador").addEventListener("keyup", function() {
+            let filtro = this.value.toLowerCase();
+            let filas = document.querySelectorAll("#tabla-pagos tr");
+            filas.forEach(function(fila) {
+                let textoFila = fila.textContent.toLowerCase();
+                fila.style.display = textoFila.includes(filtro) ? "" : "none";
+            });
+        });
+
+        function filtrarCategorias() {
+            let input = document.getElementById('busquedaCategoria').value.toLowerCase();
+            let select = document.getElementById('listaCategorias');
+            let opciones = select.getElementsByTagName('option');
+            for (let i = 0; i < opciones.length; i++) {
+                let txt = opciones[i].text.toLowerCase();
+                opciones[i].style.display = txt.includes(input) ? "" : "none";
+            }
+        }
+
+        function convertirNumero(str) {
+            if (!str) return 0;
+            let s = str.toString().trim();
+            if (s.includes('.') && s.includes(',')) {
+                s = s.replace(/\./g, '').replace(',', '.');
+            } else if (s.includes(',')) {
+                s = s.replace(',', '.');
+            }
+            return parseFloat(s) || 0;
+        }
+
+        function calcularBs() {
+            let monto = convertirNumero(document.getElementById('inputMonto').value);
+            let tasa = convertirNumero(document.getElementById('inputTasaValor').value);
+            let totalBs = monto * tasa;
+            
+            if (isNaN(totalBs)) totalBs = 0;
+
+            let formateado = totalBs.toLocaleString('es-VE', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+            document.getElementById('previewBs').textContent = formateado + " Bs";
+        }
+
+        function cambiarTasa() {
+            let tipo = document.getElementById('selectTasa').value;
+            let inputTasa = document.getElementById('inputTasaValor');
+            let statusScraper = document.querySelector('.status-scraper');
+            
+           if (tipo === 'Personalizada') {
+                inputTasa.placeholder = "Ingresa la tasa manualmente";
+                inputTasa.readOnly = false;
+                inputTasa.value = "";
+                inputTasa.style.backgroundColor = "#fff";
+                inputTasa.focus();
+                statusScraper.innerHTML = "🟡 Modo Manual (Personalizada)";
+                statusScraper.style.color = "#f39c12";
+            } else if (!tasasVivas[tipo] || tasasVivas[tipo] === 0) {
+                inputTasa.placeholder = "Falla de internet: Ingresa la tasa manualmente";
+                inputTasa.readOnly = false; 
+                inputTasa.value = "";
+                inputTasa.style.backgroundColor = "#fff";
+                inputTasa.focus();
+                statusScraper.innerHTML = "🔴 Sin Conexión. Modo Manual.";
+                statusScraper.style.color = "#e74c3c";
+            } else {
+                inputTasa.value = tasasVivas[tipo].toLocaleString('es-VE', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+                inputTasa.readOnly = true; 
+                inputTasa.style.backgroundColor = "#eef2f7";
+                statusScraper.innerHTML = "🟢 Conectado al Servidor (Automático)";
+                statusScraper.style.color = "#27ae60";
+            }
+            calcularBs();
+        }
+
+        function guardarHistorialIA() {
+            const cuerpoChat = document.getElementById('cuerpoChatIA');
+            localStorage.setItem('historialChatIA', cuerpoChat.innerHTML);
+        }
+
+        function cargarHistorialIA() {
+            const cuerpoChat = document.getElementById('cuerpoChatIA');
+            const historial = localStorage.getItem('historialChatIA');
+            if (historial) {
+                cuerpoChat.innerHTML = historial;
+                cuerpoChat.scrollTop = cuerpoChat.scrollHeight;
+            }
+        }
+
+        function toggleChatIA() {
+            const chat = document.getElementById('chatIA');
+            if (chat.style.display === 'none' || chat.style.display === '') {
+                chat.style.display = 'flex';
+                document.getElementById('inputMensajeIA').focus();
+            } else {
+                chat.style.display = 'none';
+            }
+        }
+
+        function maximizarChatIA() {
+            const chat = document.getElementById('chatIA');
+            chat.classList.toggle('maximizada');
+            
+            if(!chat.classList.contains('maximizada')) {
+                chat.style.top = "50%";
+                chat.style.left = "50%";
+                chat.style.transform = "translate(-50%, -50%)";
+            } else {
+                chat.style.top = "0";
+                chat.style.left = "0";
+                chat.style.transform = "none";
+            }
+        }
+
+        dragElement(document.getElementById("chatIA"));
+
+        function dragElement(elmnt) {
+            var pos1 = 0, pos2 = 0, pos3 = 0, pos4 = 0;
+            var header = document.getElementById("chatIAHeader");
+            if (header) {
+                header.onmousedown = dragMouseDown;
+                header.ontouchstart = dragTouchStart;
+            } else {
+                elmnt.onmousedown = dragMouseDown;
+                elmnt.ontouchstart = dragTouchStart;
+            }
+
+            function dragMouseDown(e) {
+                e = e || window.event;
+                if(e.target.closest('button')) return;
+                e.preventDefault();
+                pos3 = e.clientX;
+                pos4 = e.clientY;
+                document.onmouseup = closeDragElement;
+                document.onmousemove = elementDrag;
+            }
+
+            function elementDrag(e) {
+                e = e || window.event;
+                e.preventDefault();
+                pos1 = pos3 - e.clientX;
+                pos2 = pos4 - e.clientY;
+                pos3 = e.clientX;
+                pos4 = e.clientY;
+                elmnt.style.top = (elmnt.offsetTop - pos2) + "px";
+                elmnt.style.left = (elmnt.offsetLeft - pos1) + "px";
+                elmnt.style.transform = "none";
+            }
+
+            function dragTouchStart(e) {
+                e = e || window.event;
+                if(e.target.closest('button')) return;
+                var touch = e.touches[0];
+                pos3 = touch.clientX;
+                pos4 = touch.clientY;
+                document.ontouchend = closeDragElement;
+                document.ontouchmove = elementTouchDrag;
+            }
+
+            function elementTouchDrag(e) {
+                e = e || window.event;
+                var touch = e.touches[0];
+                pos1 = pos3 - touch.clientX;
+                pos2 = pos4 - touch.clientY;
+                pos3 = touch.clientX;
+                pos4 = touch.clientY;
+                elmnt.style.top = (elmnt.offsetTop - pos2) + "px";
+                elmnt.style.left = (elmnt.offsetLeft - pos1) + "px";
+                elmnt.style.transform = "none";
+            }
+
+            function closeDragElement() {
+                document.onmouseup = null;
+                document.onmousemove = null;
+                document.ontouchend = null;
+                document.ontouchmove = null;
+            }
+        }
+
+        var mediaRecorder = null;
+        var audioChunks = [];
+        var audioBlob = null;
+
+        function fotoSeleccionada() {
+            const inputImagen = document.getElementById('inputImagenIA');
+            const labelImagen = document.getElementById('labelImagenIA');
+            if (inputImagen.files && inputImagen.files.length > 0) {
+                labelImagen.style.backgroundColor = "#27ae60"; 
+                document.getElementById('inputMensajeIA').placeholder = `📷 ${inputImagen.files.length} foto(s) lista(s)...`;
+            }
+        }
+
+        async function alternarGrabacion() {
+            const btn = document.getElementById('btnMicrofonoIA');
+            const input = document.getElementById('inputMensajeIA');
+            
+            if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+                alert("Tu navegador bloquea el micrófono por seguridad. Si estás probando desde un celular en red local, necesitas que la conexión sea HTTPS.");
+                return;
+            }
+
+            if (mediaRecorder && mediaRecorder.state === "recording") {
+                mediaRecorder.stop();
+                btn.style.backgroundColor = ""; 
+                return;
+            }
+
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                mediaRecorder = new MediaRecorder(stream);
+                
+                mediaRecorder.ondataavailable = event => {
+                    if (event.data.size > 0) audioChunks.push(event.data);
+                };
+                
+                mediaRecorder.onstop = () => {
+                    audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+                    audioChunks = [];
+                    input.value = "";
+                    input.placeholder = "🎙️ Audio listo para enviar...";
+                    input.disabled = true; 
+                };
+
+                mediaRecorder.start();
+                btn.style.backgroundColor = "#e74c3c"; 
+                input.value = "";
+                input.placeholder = "🔴 Grabando... (Toca el micro para detener)";
+                input.disabled = true;
+            } catch (err) {
+                console.error("Error de micrófono:", err);
+                alert("No se pudo acceder al micrófono. Verifica los permisos de tu navegador.");
+            }
+        }
+
+        async function enviarMensajeIA() {
+            try {
+                const input = document.getElementById('inputMensajeIA');
+                const inputImagen = document.getElementById('inputImagenIA');
+                const cuerpoChat = document.getElementById('cuerpoChatIA');
+                const labelImagen = document.getElementById('labelImagenIA');
+                
+                const mensajeTexto = input.value.trim();
+                const archivosArray = inputImagen.files ? Array.from(inputImagen.files) : [];
+
+                if (!mensajeTexto && archivosArray.length === 0 && !audioBlob) return;
+
+                const msgUser = document.createElement('div');
+                msgUser.className = 'chat-msg msg-user';
+                let textoMostrar = mensajeTexto;
+                
+                if (audioBlob) textoMostrar = "🎙️ [Audio] " + textoMostrar;
+                if (archivosArray.length > 0) textoMostrar = `📷 [${archivosArray.length} Foto(s)] ` + (textoMostrar || "");
+                msgUser.textContent = textoMostrar || "Archivo enviado";
+                
+                cuerpoChat.appendChild(msgUser);
+                cuerpoChat.scrollTop = cuerpoChat.scrollHeight;
+                guardarHistorialIA();
+
+                input.value = '';
+                input.disabled = false;
+                input.placeholder = "Escribe tu mensaje aquí...";
+                
+                if (inputImagen) inputImagen.value = '';
+                if (labelImagen) labelImagen.style.backgroundColor = ""; 
+                
+                const audioAEnviar = audioBlob;
+                audioBlob = null; 
+                
+ const msgCargando = document.createElement('div');
+                msgCargando.className = 'chat-msg msg-ia';
+                msgCargando.id = 'ia-cargando';
+                msgCargando.innerHTML = '<em>Procesando datos... ⚡</em>';
+                cuerpoChat.appendChild(msgCargando);
+                cuerpoChat.scrollTop = cuerpoChat.scrollHeight;
+
+                const formData = new FormData();
+                if (mensajeTexto) formData.append('mensaje', mensajeTexto);
+                if (audioAEnviar) formData.append('audio', audioAEnviar, 'nota.webm');
+                
+                if (archivosArray.length > 0) {
+                    for (let i = 0; i < archivosArray.length; i++) {
+                        formData.append('imagenes', archivosArray[i]);
+                    }
+                }
+
+                try {
+                    const respuesta = await fetch('/api/ia-chat', {
+                        method: 'POST',
+                        body: formData 
+                    });
+
+                    const data = await respuesta.json();
+                    
+                    const elemCargando = document.getElementById('ia-cargando');
+                    if (elemCargando) elemCargando.remove();
+
+                    if (data.clear_chat_ui) {
+                        cuerpoChat.innerHTML = '<div class="chat-msg msg-ia">✨ ¡Memoria y pantalla reiniciadas! ¿En qué más te puedo ayudar?</div>';
+                        localStorage.removeItem('historialChatIA');
+                    } else {
+                        const msgResp = document.createElement('div');
+                        msgResp.className = 'chat-msg msg-ia';
+                        // Escucha cualquiera de las variantes devueltas por el backend (respuesta, reply o message)
+                        msgResp.textContent = data.respuesta || data.reply || data.message || "Mensaje procesado."; 
+                        cuerpoChat.appendChild(msgResp);
+                        guardarHistorialIA(); 
+                    }
+
+                } catch (error) {
+                    const elemCargando = document.getElementById('ia-cargando');
+                    if (elemCargando) elemCargando.remove();
+
+                    const msgIA = document.createElement('div');
+                    msgIA.className = 'chat-msg msg-ia';
+                    msgIA.innerHTML = '🔴 Error de conexión. Asegúrate de que el backend esté recibiendo la petición.';
+                    cuerpoChat.appendChild(msgIA);
+                    console.error("Error en fetch:", error);
+                }
+                
+                cuerpoChat.scrollTop = cuerpoChat.scrollHeight;
+            } catch (errorGeneral) {
+                alert("Ocurrió un error en la interfaz: " + errorGeneral.message);
+                console.error(errorGeneral);
+            }
+        }
+
+        document.getElementById('inputMensajeIA').addEventListener('keydown', function (e) {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                enviarMensajeIA();
+            }
+        });
+
+        window.onclick = function(event) {
+            let modal = document.getElementById('modalEditar');
+            if (event.target == modal) {
+                modal.style.display = "none";
+            }
+        }
+
+        window.onload = function() {
+            cambiarTasa();
+            cambiarTipoMovimiento();
+            cargarHistorialIA(); 
+        };
+
+        function buscarMensajeIA() {
+            let filtro = document.getElementById("buscadorChatIA").value.toLowerCase();
+            let mensajes = document.querySelectorAll("#cuerpoChatIA .chat-msg");
+            mensajes.forEach(function(msg) {
+                let texto = msg.textContent.toLowerCase();
+                msg.style.display = texto.includes(filtro) ? "" : "none";
+            });
+        }
+
+        function limpiarChatIA() {
+            if (confirm("¿Estás seguro de que deseas borrar todo el historial del chat?")) {
+                const cuerpoChat = document.getElementById('cuerpoChatIA');
+                cuerpoChat.innerHTML = '<div class="chat-msg msg-ia">¡Hola! Soy tu asistente. Puedo responder tus dudas, hacer cálculos matemáticos o registrar movimientos directamente en el sistema. ✨</div>';
+                localStorage.removeItem('historialChatIA');
+            }
+        }
+    </script>
+</body>
+</html>
