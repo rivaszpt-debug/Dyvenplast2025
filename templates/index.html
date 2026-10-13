@@ -280,28 +280,28 @@
     </div>
 
     <div class="container">
-        <h1>📊 Sistema de Control - Dyvenplast 2025</h1>
+        <h1>📊 Sistema De Control - Dyvenplast 2026</h1>
 
         <div class="grid-layout">
             <div>
                 <div class="card">
-                    <h3>➕ Registrar Movimiento</h3>
+                    <h3>➕ Registrar Movimientos</h3>
                     <form action="/agregar" method="POST">
                         
-                        <label>Tipo de Movimiento:</label>
+                        <label>Tipos De Movimientos:</label>
                         <select id="tipoMovimiento" onchange="cambiarTipoMovimiento()">
-                            <option value="gasto">Gasto</option>
-                            <option value="ingreso">Ingresos por ventas</option>
+                            <option value="gasto">Gastos</option>
+                            <option value="ingreso">Ingresos Por ventas</option>
                         </select>
 
                         <label>Monto ($):</label>
                         <input type="text" name="monto" id="inputMonto" placeholder="Ej: 1.712,15 o 1712,15" required oninput="calcularBs()">
 
-                        <label>Tasa de Cambio Oficial:</label>
+                        <label>Tasa De Cambio Oficial:</label>
                         <select name="tipo_tasa" id="selectTasa" onchange="cambiarTasa()">
                             <option value="BCV">BCV (Oficial)</option>
                             <option value="Euro">Euro</option>
-                            <option value="USDT">USDT (Binance)</option>
+                            <option value="USDT">USDT</option>
                             <option value="Personalizada">Personalizada</option>
                         </select>
 
@@ -312,7 +312,7 @@
                         <input type="text" name="tasa_valor" id="inputTasaValor" required oninput="calcularBs()">
 
                         <div style="background: #eef2f7; padding: 10px; border-radius: 6px; margin-top: 10px; font-size: 0.9rem;">
-                            🧮 Total a registrar: <strong id="previewBs" style="font-size: 1.1rem; color: #34495e;">0,00 Bs</strong>
+                            🧮 Total a Registrar: <strong id="previewBs" style="font-size: 1.1rem; color: #34495e;">0,00 Bs</strong>
                         </div>
 
                         <label>Empresa / Entidad:</label>
@@ -321,13 +321,13 @@
                         <label>Concepto / Detalle:</label>
                         <input type="text" name="concepto" placeholder="Ej: Pago de factura" required>
 
-                        <label id="labelOrigen">Origen del dinero:</label>
+                        <label id="labelOrigen">Origen Del Dinero:</label>
                         <select name="origen" id="selectOrigen" onchange="verificarOtroOrigen()" required>
                             <option value="Cuenta Ingeniero">Cuenta Ing. Dimas</option>
                             <option value="Cuenta Mayra">Cuenta Mayra</option>
                             <option value="Cuenta Binance">Cuenta Binance</option>
                             <option value="Cuenta Yorgelis">Cuenta Yorgelis</option>
-                            <option value="Otra">➕ Otra (Añadir nueva...)</option>
+                            <option value="Otra">➕ (Añadir otra...)</option>
                         </select>
                         <input type="text" name="origen_otro" id="inputOtroOrigen" placeholder="Escribe el nombre de la cuenta" style="display: none;">
 
@@ -416,7 +416,7 @@
                 <div class="barra-herramientas">
                     <input type="text" id="buscador" placeholder="🔍 Buscar movimiento por empresa, monto o concepto...">
                     <a href="/exportar" class="btn-descargar">📥 Descargar Reporte Excel</a>
-                    <button type="button" class="btn-descargar" style="background-color: #2980b9;" onclick="toggleChatIA()">🤖 Abrir Asistente IA</button>
+                    <button type="button" class="btn-descargar" style="background-color: #2980b9;" onclick="toggleChatIA()">🤖 Asistente IA</button>
                 </div>
 
                 <div class="table-wrapper">
