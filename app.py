@@ -517,7 +517,6 @@ def eliminar_pago(id):
 def vaciar_historial_route():
     conn = obtener_conexion()
     conn.execute('DELETE FROM pagos')
-    conn.execute("DELETE FROM sqlite_sequence WHERE name='pagos'")
     conn.commit()
     conn.close()
     return redirect(url_for('index'))
