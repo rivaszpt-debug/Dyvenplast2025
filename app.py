@@ -1,5 +1,12 @@
+from dotenv import load_dotenv
+import os
+
+load_dotenv()
+
 from flask import Flask, render_template, request, redirect, url_for, Response, jsonify
-import sqlite3
+import psycopg2
+from psycopg2.extras import RealDictCursor
+import psycopg2.extras
 from datetime import datetime
 import csv
 from io import StringIO
@@ -9,6 +16,7 @@ import requests
 import urllib3
 import re
 import json
+from decimal import Decimal
 
 from google import genai
 from google.genai import types
@@ -122,45 +130,81 @@ def obtener_tasas():
 
 
 # --- BASE DE DATOS ---
+class AdaptadorSQLitePostgres:
+    def __init__(self, conn):
+        self.conn = conn
+
+    def cursor(self, *args, **kwargs):
+        kwargs['cursor_factory'] = RealDictCursor
+        return self.conn.cursor(*args, **kwargs)
+
+    def execute(self, query, vars=None):
+        cur = self.cursor()
+        
+        # Traducir automáticamente INSERT OR IGNORE de SQLite a PostgreSQL ON CONFLICT
+        query_upper = query.upper()
+        if "INSERT OR IGNORE" in query_upper:
+            idx = query_upper.find("INSERT OR IGNORE")
+            query = query[:idx] + "INSERT" + query[idx + len("INSERT OR IGNORE"):]
+            
+            q_up_check = query.upper()
+            if "CATEGORIAS" in q_up_check or "CUENTAS" in q_up_check:
+                query = query.rstrip().rstrip(';') + " ON CONFLICT (nombre) DO NOTHING"
+            else:
+                query = query.rstrip().rstrip(';') + " ON CONFLICT DO NOTHING"
+
+        # Reemplazar los marcadores ? por %s
+        query = query.replace('?', '%s')
+
+        if vars:
+            cur.execute(query, vars)
+        else:
+            cur.execute(query)
+        return cur
+
+    def commit(self):
+        return self.conn.commit()
+
+    def close(self):
+        return self.conn.close()
+
 def obtener_conexion():
-    # Si detecta que está en Railway, usa la ruta del volumen seguro. Si no, usa tu PC.
-    ruta_db = '/data/pagos.db' if os.getenv('RAILWAY_ENVIRONMENT') else 'pagos.db'
-    
-    conn = sqlite3.connect(ruta_db)
-    conn.row_factory = sqlite3.Row
-    return conn
+    database_url = os.environ.get('DATABASE_URL').strip()
+    conn = psycopg2.connect(database_url)
+    return AdaptadorSQLitePostgres(conn)
 
 def crear_tabla():
     conn = obtener_conexion()
     conn.execute('''
         CREATE TABLE IF NOT EXISTS pagos (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            monto REAL NOT NULL,
-            monto_bs REAL DEFAULT 0,
+            id SERIAL PRIMARY KEY,
+            monto NUMERIC NOT NULL,
+            monto_bs NUMERIC DEFAULT 0,
             tasa_usada TEXT,
             concepto TEXT NOT NULL,
             origen TEXT NOT NULL,
             empresa TEXT NOT NULL,
             categoria TEXT NOT NULL,
             estatus TEXT NOT NULL,
-            fecha TIMESTAMP DEFAULT (datetime('now', 'localtime'))
+            fecha TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     ''')
     conn.execute('''
         CREATE TABLE IF NOT EXISTS categorias (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            id SERIAL PRIMARY KEY,
             nombre TEXT UNIQUE NOT NULL
         )
     ''')
     conn.execute('''
         CREATE TABLE IF NOT EXISTS cuentas (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            id SERIAL PRIMARY KEY,
             nombre TEXT UNIQUE NOT NULL
         )
     ''')
 
     # Poblado inicial de categorías
-    cat_count = conn.execute("SELECT COUNT(*) FROM categorias").fetchone()[0]
+    res_cat = conn.execute("SELECT COUNT(*) as total FROM categorias").fetchone()
+    cat_count = res_cat['total'] if isinstance(res_cat, dict) else res_cat[0]
     if cat_count == 0:
         cats_defecto = [
             "Adicionales nómina", "Alcaldía", "Alquiler de Galpón", "Binance",
@@ -174,14 +218,15 @@ def crear_tabla():
             "Préstamos Empleados", "Préstamos Terceros"
         ]
         for c in cats_defecto:
-            conn.execute("INSERT OR IGNORE INTO categorias (nombre) VALUES (?)", (c,))
+            conn.execute("INSERT INTO categorias (nombre) VALUES (%s) ON CONFLICT (nombre) DO NOTHING", (c,))
 
     # Poblado inicial de cuentas/orígenes
-    cta_count = conn.execute("SELECT COUNT(*) FROM cuentas").fetchone()[0]
+    res_cta = conn.execute("SELECT COUNT(*) as total FROM cuentas").fetchone()
+    cta_count = res_cta['total'] if isinstance(res_cta, dict) else res_cta[0]
     if cta_count == 0:
         ctas_defecto = ["Cuenta Ingeniero", "Cuenta Mayra", "Cuenta Binance", "Cuenta Yorgelis"]
         for c in ctas_defecto:
-            conn.execute("INSERT OR IGNORE INTO cuentas (nombre) VALUES (?)", (c,))
+            conn.execute("INSERT INTO cuentas (nombre) VALUES (%s) ON CONFLICT (nombre) DO NOTHING", (c,))
 
     conn.commit()
     conn.close()
@@ -354,34 +399,45 @@ def consultar_datos(filtro: str) -> str:
     """Consulta la base de datos para extraer registros, sumatorias o buscar por empresa/categoría/estatus/ID."""
     try:
         conn = obtener_conexion()
+        # Aseguramos usar un cursor que devuelva diccionarios (o adaptamos las filas)
+        cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) if 'psycopg2' in globals() else conn.cursor()
+        
         filtro_low = filtro.lower()
         if "hoy" in filtro_low:
             hoy = datetime.now().strftime('%Y-%m-%d')
-            filas = conn.execute("SELECT id, fecha, monto, monto_bs, empresa, concepto, categoria, estatus, origen FROM pagos WHERE fecha LIKE ? ORDER BY id DESC", (f"{hoy}%",)).fetchall()
+            # Usamos %s y fecha::text para que PostgreSQL permita buscar con LIKE
+            cur.execute("SELECT id, fecha, monto, monto_bs, empresa, concepto, categoria, estatus, origen FROM pagos WHERE fecha::text LIKE %s ORDER BY id DESC", (f"{hoy}%",))
         elif "cobrar" in filtro_low or "pendiente" in filtro_low:
-            filas = conn.execute("SELECT id, fecha, monto, monto_bs, empresa, concepto, categoria, estatus, origen FROM pagos WHERE estatus IN ('Pendiente por cobrar', 'Abono') ORDER BY id DESC").fetchall()
+            cur.execute("SELECT id, fecha, monto, monto_bs, empresa, concepto, categoria, estatus, origen FROM pagos WHERE estatus IN ('Pendiente por cobrar', 'Abono') ORDER BY id DESC")
         else:
-            filas = conn.execute("SELECT id, fecha, monto, monto_bs, empresa, concepto, categoria, estatus, origen FROM pagos ORDER BY id DESC LIMIT 30").fetchall()
+            cur.execute("SELECT id, fecha, monto, monto_bs, empresa, concepto, categoria, estatus, origen FROM pagos ORDER BY id DESC LIMIT 30")
+            
+        filas = cur.fetchall()
+        cur.close()
         conn.close()
-        registros = [dict(r) for r in filas]
+        
+        registros = []
+        for r in filas:
+            d = dict(r)
+            # Convertir datetime de PostgreSQL a texto plano de forma segura
+            if isinstance(d.get('fecha'), datetime):
+                d['fecha'] = d['fecha'].strftime('%Y-%m-%d %H:%M:%S')
+            # Convertir Decimal a float para que el JSON no colapse
+            if isinstance(d.get('monto'), Decimal):
+                d['monto'] = float(d['monto'])
+            if isinstance(d.get('monto_bs'), Decimal):
+                d['monto_bs'] = float(d['monto_bs'])
+                
+            registros.append(d)
+
         if not registros:
             return "La consulta arrojó 0 resultados."
+            
         return f"Datos obtenidos ({len(registros)} registros): {json.dumps(registros, ensure_ascii=False)}"
+        
     except Exception as e:
         return f"Error al consultar: {str(e)}"
-
-def vaciar_historial() -> str:
-    """PELIGRO: Elimina el historial financiero completo de la base de datos. SOLO EJECUTAR si el usuario ya dio su confirmación expresa de borrar todo el historial."""
-    try:
-        conn = obtener_conexion()
-        conn.execute('DELETE FROM pagos')
-        conn.execute("DELETE FROM sqlite_sequence WHERE name='pagos'")
-        conn.commit()
-        conn.close()
-        return "BASE DE DATOS ELIMINADA CON ÉXITO. El historial financiero quedó en 0."
-    except Exception as e:
-        return f"Error al vaciar: {str(e)}"
-
+    
 def limpiar_memoria_chat() -> str:
     """Borra únicamente la memoria de la conversación actual de la IA cuando el usuario le pide reiniciar el chat."""
     global RESET_CHAT
@@ -392,13 +448,42 @@ def limpiar_memoria_chat() -> str:
 @app.route('/')
 def index():
     conn = obtener_conexion()
-    pagos_db = conn.execute('SELECT * FROM pagos ORDER BY id DESC').fetchall()
+    cur = conn.cursor()
+    
+    # Ordenar desde la fecha más reciente a la más antigua
+    cur.execute('SELECT * FROM pagos ORDER BY fecha DESC, id DESC')
+    filas = cur.fetchall()
+    
+    cur.close()
     conn.close()
-
-    pagos = [dict(p) for p in pagos_db]
+    
+    hoy_date = datetime.now().date()
+    
+    todos_pagos = []
+    for r in filas:
+        d = dict(r)
+        f_obj = d.get('fecha')
+        
+        # Procesar la fecha de manera segura con objetos de fecha reales
+        if isinstance(f_obj, datetime):
+            d['fecha'] = f_obj.strftime('%Y-%m-%d %H:%M:%S')
+            d['fecha_date'] = f_obj.date()
+        elif isinstance(f_obj, str):
+            try:
+                # Intentar parsear los primeros 10 caracteres (YYYY-MM-DD)
+                d['fecha_date'] = datetime.strptime(f_obj[:10], '%Y-%m-%d').date()
+            except:
+                d['fecha_date'] = hoy_date
+        else:
+            d['fecha_date'] = hoy_date
+            
+        if isinstance(d.get('monto'), Decimal):
+            d['monto'] = float(d['monto'])
+        if isinstance(d.get('monto_bs'), Decimal):
+            d['monto_bs'] = float(d['monto_bs'])
+        todos_pagos.append(d)
+    
     totales_categoria = {}
-
-    hoy = datetime.now().strftime('%Y-%m-%d')
     resumen_hoy = {
         "movimientos_hechos": 0,
         "ingresos": 0.0,
@@ -407,30 +492,46 @@ def index():
         "por_cobrar": 0.0
     }
 
-    for p in pagos:
-        estatus_p = p['estatus']
-        monto_p = float(p['monto'])
-        if estatus_p in ['Pendiente por cobrar', 'Abono'] and monto_p > 0:
-            resumen_hoy['por_cobrar'] += monto_p
+    pagos_hoy = []
+    pagos_historial = []
 
-        cat = p['categoria']
+    for p in todos_pagos:
+        estatus_p = p.get('estatus', '')
+        monto_p = float(p.get('monto') or 0.0)
+        cat = p.get('categoria') or ''
+        
         p['es_ingreso'] = True if 'ingreso' in cat.lower() or 'venta' in cat.lower() else False
 
-        if not p['es_ingreso']:
-            totales_categoria[cat] = totales_categoria.get(cat, 0) + monto_p
+        if not p['es_ingreso'] and cat:
+            totales_categoria[cat] = totales_categoria.get(cat, 0.0) + monto_p
 
-        if p['fecha'] and str(p['fecha']).startswith(hoy):
+        # COMPARACIÓN ESTRICTA DE CALENDARIO:
+        # Si la fecha del registro coincide exactamente con el día de hoy, va al Resumen de Hoy
+        if p['fecha_date'] == hoy_date:
+            pagos_hoy.append(p)
             resumen_hoy['movimientos_hechos'] += 1
-            if estatus_p in ['Pagado']:
+            
+            if estatus_p in ['Pendiente por cobrar', 'Abono'] and monto_p > 0:
+                resumen_hoy['por_cobrar'] += monto_p
+
+            if estatus_p == 'Pagado':
                 if p['es_ingreso']:
                     resumen_hoy['ingresos'] += monto_p
                 else:
                     resumen_hoy['egresos'] += monto_p
+        else:
+            # Cualquier otra fecha (pasada o futura) va al Historial de Días Anteriores
+            pagos_historial.append(p)
 
     resumen_hoy['saldo'] = resumen_hoy['ingresos'] - resumen_hoy['egresos']
-    tasas_vivas = obtener_tasas()
+    tasas_vivas = obtener_tasas() if 'obtener_tasas' in globals() else {}
 
-    return render_template('index.html', pagos=pagos, totales=totales_categoria, resumen_hoy=resumen_hoy, tasas=tasas_vivas)
+    return render_template('index.html', 
+                           pagos_hoy=pagos_hoy, 
+                           pagos_historial=pagos_historial, 
+                           totales=totales_categoria, 
+                           resumen_hoy=resumen_hoy, 
+                           tasas=tasas_vivas)
 
 @app.route('/agregar', methods=['POST'])
 def agregar_pago():
@@ -441,6 +542,9 @@ def agregar_pago():
     estatus = request.form.get('estatus')
     tipo_tasa = request.form.get('tipo_tasa')
     tasa_valor = request.form.get('tasa_valor')
+    
+    # Obtener fecha del formulario o usar la fecha y hora actual
+    fecha = request.form.get('fecha') or datetime.now().strftime('%Y-%m-%d %H:%M:%S')
 
     origen_str = request.form.get('origen')
     if origen_str == 'Otra':
@@ -452,12 +556,19 @@ def agregar_pago():
         monto_bs = round(monto * tasa_num, 2)
 
         conn = obtener_conexion()
+        
+        # Guardar incluyendo el campo 'fecha'
         conn.execute('''
-            INSERT INTO pagos (monto, monto_bs, tasa_usada, concepto, origen, empresa, categoria, estatus)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-        ''', (monto, monto_bs, f"{tipo_tasa} ({tasa_num:.2f})", concepto, origen_str, empresa, categoria, estatus))
-        conn.execute("INSERT OR IGNORE INTO categorias (nombre) VALUES (?)", (categoria.strip(),))
-        conn.execute("INSERT OR IGNORE INTO cuentas (nombre) VALUES (?)", (origen_str.strip(),))
+            INSERT INTO pagos (fecha, monto, monto_bs, tasa_usada, concepto, origen, empresa, categoria, estatus)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+        ''', (fecha, monto, monto_bs, f"{tipo_tasa} ({tasa_num:.2f})", concepto, origen_str, empresa, categoria, estatus))
+
+        if categoria and categoria.strip():
+            conn.execute("INSERT INTO categorias (nombre) VALUES (%s) ON CONFLICT (nombre) DO NOTHING", (categoria.strip(),))
+            
+        if origen_str and origen_str.strip():
+            conn.execute("INSERT INTO cuentas (nombre) VALUES (%s) ON CONFLICT (nombre) DO NOTHING", (origen_str.strip(),))
+
         conn.commit()
         conn.close()
 
@@ -544,6 +655,19 @@ def exportar_excel():
         mimetype="text/csv",
         headers={"Content-Disposition": "attachment;filename=Reporte_Cuentas_y_Pagos.csv"}
     )
+
+def vaciar_historial() -> str:
+    """Borra toda la tabla de pagos de la base de datos de forma segura."""
+    try:
+        conn = obtener_conexion()
+        cur = conn.cursor()
+        cur.execute("DELETE FROM pagos")
+        conn.commit()
+        cur.close()
+        conn.close()
+        return "Se ha vaciado todo el historial de la base de datos con éxito."
+    except Exception as e:
+        return f"Error al vaciar el historial: {str(e)}"
 
 # --- RUTAS DE LA APLICACIÓN: ASISTENTE DE IA ---
 @app.route('/api/ia-chat', methods=['POST'])

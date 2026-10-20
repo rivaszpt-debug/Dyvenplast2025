@@ -414,68 +414,147 @@
                 </div>
 
                 <div class="barra-herramientas">
-                    <input type="text" id="buscador" placeholder="🔍 Buscar movimiento por empresa, monto o concepto...">
+                    <input type="text" id="buscador" placeholder="🔍 Buscar en Resumen de Hoy o Historial...">
                     <a href="/exportar" class="btn-descargar">📥 Descargar Reporte Excel</a>
                     <button type="button" class="btn-descargar" style="background-color: #2980b9;" onclick="toggleChatIA()">🤖 Asistente IA</button>
                 </div>
 
-                <div class="table-wrapper">
-                    <table>
-                        <thead>
-                            <tr>
-                                <th>Fecha</th>
-                                <th>Empresa</th>
-                                <th>Concepto/Categoría</th>
-                                <th>Monto ($ / Bs)</th>
-                                <th>Cuenta (Origen)</th>
-                                <th>Estatus</th>
-                                <th style="min-width: 130px;">Acciones</th> 
-                            </tr>
-                        </thead>
-                        <tbody id="tabla-pagos">
-                            {% for p in pagos %}
-                            <tr data-tipo="{% if p.es_ingreso %}ingreso{% else %}gasto{% endif %}" data-estatus="{{ p.estatus | lower }}">
-                                <td><span class="fecha-chica">{{ p.fecha[:10] }}</span></td>
-                                <td><strong>{{ p.empresa }}</strong></td>
-                                <td>
-                                    {{ p.concepto }}<br>
-                                    <small style="color: #666;">{{ p.categoria }}</small>
-                                </td>
-                                <td>
-                                    <strong class="{% if p.es_ingreso %}text-verde{% else %}text-rojo{% endif %}">
-                                        $ {{ "{:,.2f}".format(p.monto).replace(',', 'X').replace('.', ',').replace('X', '.') }}
-                                    </strong>
-                                    <span class="monto-bs {% if p.es_ingreso %}text-verde{% else %}text-rojo{% endif %}">
-                                        Bs. {{ "{:,.2f}".format(p.monto_bs).replace(',', 'X').replace('.', ',').replace('X', '.') }}
-                                    </span>
-                                    <small style="color:#7f8c8d;">({{ p.tasa_usada }})</small>
-                                </td>
-                                <td><span class="badge badge-origen">{{ p.origen }}</span></td>
-                                <td>
-                                    <span class="badge {% if p.estatus == 'Pagado' %}badge-pagado{% elif p.estatus == 'Abono' %}badge-abono{% else %}badge-pendiente{% endif %}">
-                                        {{ p.estatus }}
-                                    </span>
-                                </td>
-                                <td>
-                                    <button type="button" class="btn-editar" 
-                                        data-id="{{ p.id }}" 
-                                        data-fecha="{{ p.fecha[:10] }}"
-                                        data-empresa="{{ p.empresa }}"
-                                        data-concepto="{{ p.concepto }}"
-                                        data-monto="{{ p.monto }}"
-                                        data-origen="{{ p.origen }}"
-                                        data-categoria="{{ p.categoria }}"
-                                        data-estatus="{{ p.estatus }}"
-                                        onclick="abrirModalEditar(this)">Editar</button>
+                <!-- 🟢 TABLA 1: MOVIMIENTOS DE HOY -->
+                <div class="card" style="margin-top: 20px;">
+                    <h3 style="color: var(--exito);">⚡ Movimientos Registrados Hoy</h3>
+                    <div class="table-wrapper">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Fecha</th>
+                                    <th>Empresa</th>
+                                    <th>Concepto/Categoría</th>
+                                    <th>Monto ($ / Bs)</th>
+                                    <th>Cuenta (Origen)</th>
+                                    <th>Estatus</th>
+                                    <th style="min-width: 130px;">Acciones</th> 
+                                </tr>
+                            </thead>
+                            <tbody id="tabla-hoy">
+                                {% if pagos_hoy %}
+                                    {% for p in pagos_hoy %}
+                                    <tr data-tipo="{% if p.es_ingreso %}ingreso{% else %}gasto{% endif %}" data-estatus="{{ p.estatus | lower }}">
+                                        <td><span class="fecha-chica">{{ p.fecha }}</span></td>
+                                        <td><strong>{{ p.empresa }}</strong></td>
+                                        <td>
+                                            {{ p.concepto }}<br>
+                                            <small style="color: #666;">{{ p.categoria }}</small>
+                                        </td>
+                                        <td>
+                                            <strong class="{% if p.es_ingreso %}text-verde{% else %}text-rojo{% endif %}">
+                                                $ {{ "{:,.2f}".format(p.monto).replace(',', 'X').replace('.', ',').replace('X', '.') }}
+                                            </strong>
+                                            <span class="monto-bs {% if p.es_ingreso %}text-verde{% else %}text-rojo{% endif %}">
+                                                Bs. {{ "{:,.2f}".format(p.monto_bs).replace(',', 'X').replace('.', ',').replace('X', '.') }}
+                                            </span>
+                                            <small style="color:#7f8c8d;">({{ p.tasa_usada }})</small>
+                                        </td>
+                                        <td><span class="badge badge-origen">{{ p.origen }}</span></td>
+                                        <td>
+                                            <span class="badge {% if p.estatus == 'Pagado' %}badge-pagado{% elif p.estatus == 'Abono' %}badge-abono{% else %}badge-pendiente{% endif %}">
+                                                {{ p.estatus }}
+                                            </span>
+                                        </td>
+                                        <td>
+                                            <button type="button" class="btn-editar" 
+                                                data-id="{{ p.id }}" 
+                                                data-fecha="{{ p.fecha }}"
+                                                data-empresa="{{ p.empresa }}"
+                                                data-concepto="{{ p.concepto }}"
+                                                data-monto="{{ p.monto }}"
+                                                data-origen="{{ p.origen }}"
+                                                data-categoria="{{ p.categoria }}"
+                                                data-estatus="{{ p.estatus }}"
+                                                onclick="abrirModalEditar(this)">Editar</button>
 
-                                    <form action="/eliminar/{{ p.id }}" method="POST" onsubmit="return confirm('¿Desea eliminar este registro permanentemente?');" style="display:inline;">
-                                        <button type="submit" class="btn-eliminar">Borrar</button>
-                                    </form>
-                                </td>
-                            </tr>
-                            {% endfor %}
-                        </tbody>
-                    </table>
+                                            <form action="/eliminar/{{ p.id }}" method="POST" onsubmit="return confirm('¿Desea eliminar este registro permanentemente?');" style="display:inline;">
+                                                <button type="submit" class="btn-eliminar">Borrar</button>
+                                            </form>
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                {% else %}
+                                    <tr>
+                                        <td colspan="7" style="text-align: center; color: #888; padding: 15px;">No hay movimientos registrados el día de hoy.</td>
+                                    </tr>
+                                {% endif %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- 📁 TABLA 2: HISTORIAL DE DÍAS ANTERIORES -->
+                <div class="card" style="margin-top: 25px;">
+                    <h3 style="color: var(--primario);">📁 Historial de Días Anteriores</h3>
+                    <div class="table-wrapper">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Fecha</th>
+                                    <th>Empresa</th>
+                                    <th>Concepto/Categoría</th>
+                                    <th>Monto ($ / Bs)</th>
+                                    <th>Cuenta (Origen)</th>
+                                    <th>Estatus</th>
+                                    <th style="min-width: 130px;">Acciones</th> 
+                                </tr>
+                            </thead>
+                            <tbody id="tabla-historial">
+                                {% if pagos_historial %}
+                                    {% for p in pagos_historial %}
+                                    <tr data-tipo="{% if p.es_ingreso %}ingreso{% else %}gasto{% endif %}" data-estatus="{{ p.estatus | lower }}">
+                                        <td><span class="fecha-chica">{{ p.fecha }}</span></td>
+                                        <td><strong>{{ p.empresa }}</strong></td>
+                                        <td>
+                                            {{ p.concepto }}<br>
+                                            <small style="color: #666;">{{ p.categoria }}</small>
+                                        </td>
+                                        <td>
+                                            <strong class="{% if p.es_ingreso %}text-verde{% else %}text-rojo{% endif %}">
+                                                $ {{ "{:,.2f}".format(p.monto).replace(',', 'X').replace('.', ',').replace('X', '.') }}
+                                            </strong>
+                                            <span class="monto-bs {% if p.es_ingreso %}text-verde{% else %}text-rojo{% endif %}">
+                                                Bs. {{ "{:,.2f}".format(p.monto_bs).replace(',', 'X').replace('.', ',').replace('X', '.') }}
+                                            </span>
+                                            <small style="color:#7f8c8d;">({{ p.tasa_usada }})</small>
+                                        </td>
+                                        <td><span class="badge badge-origen">{{ p.origen }}</span></td>
+                                        <td>
+                                            <span class="badge {% if p.estatus == 'Pagado' %}badge-pagado{% elif p.estatus == 'Abono' %}badge-abono{% else %}badge-pendiente{% endif %}">
+                                                {{ p.estatus }}
+                                            </span>
+                                        </td>
+                                        <td>
+                                            <button type="button" class="btn-editar" 
+                                                data-id="{{ p.id }}" 
+                                                data-fecha="{{ p.fecha }}"
+                                                data-empresa="{{ p.empresa }}"
+                                                data-concepto="{{ p.concepto }}"
+                                                data-monto="{{ p.monto }}"
+                                                data-origen="{{ p.origen }}"
+                                                data-categoria="{{ p.categoria }}"
+                                                data-estatus="{{ p.estatus }}"
+                                                onclick="abrirModalEditar(this)">Editar</button>
+
+                                            <form action="/eliminar/{{ p.id }}" method="POST" onsubmit="return confirm('¿Desea eliminar este registro permanentemente?');" style="display:inline;">
+                                                <button type="submit" class="btn-eliminar">Borrar</button>
+                                            </form>
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                {% else %}
+                                    <tr>
+                                        <td colspan="7" style="text-align: center; color: #888; padding: 15px;">No hay registros en el historial anterior.</td>
+                                    </tr>
+                                {% endif %}
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
 
                 <div style="margin-top: 40px; text-align: center; border-top: 1px solid #eee; padding-top: 30px;">
@@ -488,12 +567,12 @@
         </div>
     </div>
 
-    <!-- MODAL DE EDICIÓN FLOTANTE -->
+    <!-- MODAL DE EDICIÓN FLOTANTE (Solo el formulario) -->
     <div id="modalEditar" class="modal">
         <div class="modal-content">
             <span class="close" onclick="document.getElementById('modalEditar').style.display='none'">&times;</span>
             <h3 style="margin-top:0; color:var(--primario); border-bottom: 1px solid #eee; padding-bottom:10px;">✏️ Editar Movimiento</h3>
-            
+                
             <form id="formEditar" method="POST">
                 <label>Fecha del Registro:</label>
                 <input type="date" name="fecha" id="editFecha" required>
@@ -537,7 +616,7 @@
     </div>
 
     <!-- --- VENTANA DE CHAT IA --- -->
-<div class="chat-ia-ventana" id="chatIA">
+    <div class="chat-ia-ventana" id="chatIA">
         <div class="chat-ia-header" id="chatIAHeader">
             <div class="header-titulo">
                 <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -602,11 +681,13 @@
             "USDT": parseFloat(configData.dataset.usdt) || 0
         };
 
-        function filtrarTabla(filtro) {
-            let filas = document.querySelectorAll("#tabla-pagos tr");
+       function filtrarTabla(filtro) {
+            let filas = document.querySelectorAll("#tabla-hoy tr, #tabla-historial tr");
             filas.forEach(fila => {
                 let tipo = fila.getAttribute("data-tipo");
                 let estatus = fila.getAttribute("data-estatus");
+
+                if (!tipo) return; // Omite filas de mensaje "no hay movimientos"
 
                 if (filtro === 'todo') {
                     fila.style.display = "";
@@ -797,9 +878,10 @@
             }
         }
 
-        document.getElementById("buscador").addEventListener("keyup", function() {
+        
+           document.getElementById("buscador").addEventListener("keyup", function() {
             let filtro = this.value.toLowerCase();
-            let filas = document.querySelectorAll("#tabla-pagos tr");
+            let filas = document.querySelectorAll("#tabla-hoy tr, #tabla-historial tr");
             filas.forEach(function(fila) {
                 let textoFila = fila.textContent.toLowerCase();
                 fila.style.display = textoFila.includes(filtro) ? "" : "none";
